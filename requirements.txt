@@ -1,0 +1,23 @@
+# Data Processing
+pyspark
+pandas
+
+# Database Integration
+psycopg2-binary
+
+# S3 Interaction
+boto3
+
+# Configuration Management
+python-dotenv
+PyYAML
+
+# Testing
+pytest
+
+# Logging Enhancements (Optional)
+ python-json-logger
+
+# Additional Utilities (Optional)
+ numpy
+ sqlalchemy

@@ -1,0 +1,34 @@
+# docker/Dockerfile.spark
+
+FROM bitnami/spark:3.4.1
+
+# Set environment variables
+ENV SPARK_HOME=/opt/bitnami/spark
+ENV PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH
+ENV PYSPARK_PYTHON=python3
+
+# Upgrade pip and install PySpark if not already installed
+RUN pip install --upgrade pip
+
+# Check if PySpark is already installed
+RUN if ! python3 -c "import pyspark" &> /dev/null; then \
+        pip install pyspark==3.4.1; \
+    fi
+
+# Install additional Python dependencies
+RUN pip install --no-cache-dir pandas sqlalchemy psycopg2-binary
+
+# Copy Spark configurations
+COPY spark-configs/spark-defaults.conf $SPARK_HOME/conf/spark-defaults.conf
+
+# Copy Spark job scripts
+COPY scripts/ $SPARK_HOME/scripts/
+
+# Ensure scripts are executable
+RUN chmod +x $SPARK_HOME/scripts/*.py
+
+# (Optional) Set working directory
+WORKDIR $SPARK_HOME
+
+# Expose Spark ports if not already exposed by the base image
+EXPOSE 7077 8081

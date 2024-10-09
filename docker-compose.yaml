@@ -1,0 +1,95 @@
+version: '3.7'
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  minio:
+    image: minio/minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command: server /data
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+
+  spark:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.spark
+    environment:
+      SPARK_MODE: master
+    volumes:
+      - ./scripts:/opt/bitnami/spark/scripts
+      - ./data:/opt/bitnami/spark/data
+      - ./data_clean:/opt/bitnami/spark/data_clean
+    ports:
+      - "7077:7077"  # Spark master port
+      - "8081:8081"  # Spark master UI
+
+  webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: apache/airflow:2.5.0
+    restart: always
+    depends_on:
+      - postgres
+      - minio
+      - spark
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__FERNET_KEY: oNejoS2e9t7yI6nGpv-ErNLwOuBp96ezR5PExbwX1NE=
+      AIRFLOW__WEBSERVER__SECRET_KEY: Shpnb309kRlV2uJ-HJnU_z-lziVd6TPsXFvX_tVMC18
+      PYTHONPATH: "/opt/airflow/src"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./src:/opt/airflow/src
+      - ./data:/opt/airflow/data
+      - ./data_clean:/opt/airflow/data_clean
+    ports:
+      - "8080:8080"
+    command: webserver
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: apache/airflow:2.5.0
+    restart: always
+    depends_on:
+      - webserver
+      - postgres
+      - minio
+      - spark
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__FERNET_KEY: oNejoS2e9t7yI6nGpv-ErNLwOuBp96ezR5PExbwX1NE=
+      AIRFLOW__WEBSERVER__SECRET_KEY: Shpnb309kRlV2uJ-HJnU_z-lziVd6TPsXFvX_tVMC18
+      PYTHONPATH: "/opt/airflow/src"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./src:/opt/airflow/src
+      - ./data:/opt/airflow/data
+      - ./data_clean:/opt/airflow/data_clean
+    command: scheduler
+
+volumes:
+  postgres_data:
+  minio_data:
