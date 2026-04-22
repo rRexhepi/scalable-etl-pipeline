@@ -1,11 +1,11 @@
 # dags/nyc_taxi_etl_dag.py
 
+from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.providers.amazon.aws.operators.s3 import S3CreateBucketOperator
-from datetime import datetime, timedelta
 
 default_args = {
     'owner': 'airflow',

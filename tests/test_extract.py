@@ -1,7 +1,10 @@
-import pytest
-from etl.extract import extract_data
 import os
+
 import pandas as pd
+import pytest
+
+from etl.extract import extract_data
+
 
 def test_extract_data_success(monkeypatch):
     # Setup mock config

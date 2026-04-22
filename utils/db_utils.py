@@ -1,6 +1,8 @@
-from sqlalchemy import create_engine
-import yaml
 import os
+
+import yaml
+from sqlalchemy import create_engine
+
 
 def get_db_engine(config_path='config/config.yaml'):
     """
@@ -14,23 +16,23 @@ def get_db_engine(config_path='config/config.yaml'):
     """
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
-    
-    with open(config_path, 'r') as file:
+
+    with open(config_path) as file:
         config = yaml.safe_load(file)
-    
+
     db_config = config.get('database')
     if not db_config:
         raise KeyError("Database configuration not found in the config file.")
-    
+
     required_keys = ['host', 'port', 'user', 'password', 'dbname']
     for key in required_keys:
         if key not in db_config:
             raise KeyError(f"Database configuration missing '{key}' key.")
-    
+
     engine_url = f"postgresql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['dbname']}"
     try:
         engine = create_engine(engine_url)
     except Exception as e:
-        raise ConnectionError(f"Failed to create engine: {e}")
-    
+        raise ConnectionError(f"Failed to create engine: {e}") from e
+
     return engine
