@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # One-shot ETL job metrics are pushed by etl/metrics.py:MetricsRecorder.
+  # The `honor_labels: true` flag keeps the `job` + `instance` labels the
+  # loader sets instead of overwriting them with the Pushgateway's own.
+  - job_name: etl_jobs
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]
+
+  # Warehouse health: connections, rows, lag, table sizes, etc.
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  # Prometheus scrapes itself so the dashboard can show its own uptime.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

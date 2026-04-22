@@ -23,8 +23,11 @@ from dataclasses import dataclass
 import pandas as pd
 import yaml
 
+from etl.metrics import MetricsRecorder
 from utils.db_utils import copy_upsert, get_db_engine, get_watermark
 from utils.logger import setup_logger
+
+METRICS_JOB = "nyc_taxi_load"
 
 
 @dataclass(frozen=True)
@@ -126,12 +129,14 @@ def load_data(config_path: str = "config/config.yaml", *, use_watermark: bool = 
         if use_watermark:
             df = _apply_watermark(df, engine, spec, logger)
 
-        rows = copy_upsert(
-            engine,
-            df,
-            target_table=spec.target_table,
-            conflict_columns=[spec.conflict_column],
-        )
+        with MetricsRecorder(METRICS_JOB, spec.key) as metrics:
+            rows = copy_upsert(
+                engine,
+                df,
+                target_table=spec.target_table,
+                conflict_columns=[spec.conflict_column],
+            )
+            metrics.rows_loaded = rows
         loaded[spec.key] = rows
         logger.info("Upserted %s rows into %s.", rows, spec.target_table)
 

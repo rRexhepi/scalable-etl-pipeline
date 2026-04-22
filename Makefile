@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint fmt test up down logs etl clean
+.PHONY: help install install-dev lint fmt test up down logs dashboards clean
 
 help:
 	@echo "Targets:"
@@ -7,10 +7,10 @@ help:
 	@echo "  lint         - Run ruff"
 	@echo "  fmt          - Auto-fix lint and format"
 	@echo "  test         - Run pytest with coverage"
-	@echo "  up           - docker compose up -d (Postgres, MinIO, Spark, Airflow)"
+	@echo "  up           - docker compose up -d (Postgres, MinIO, Spark, Airflow, Prometheus, Grafana)"
 	@echo "  down         - docker compose down"
 	@echo "  logs         - Tail compose logs"
-	@echo "  etl          - Run the local ETL orchestrator (requires .env)"
+	@echo "  dashboards   - Print URLs for Airflow / Grafana / Prometheus / MinIO"
 	@echo "  clean        - Remove __pycache__, .pytest_cache, logs"
 
 install:
@@ -39,8 +39,12 @@ down:
 logs:
 	docker compose logs -f
 
-etl:
-	python run_all_etl.py
+dashboards:
+	@echo "Airflow     : http://localhost:8080"
+	@echo "Grafana     : http://localhost:3000 (anonymous viewer enabled)"
+	@echo "Prometheus  : http://localhost:9090"
+	@echo "Pushgateway : http://localhost:9091"
+	@echo "MinIO       : http://localhost:9001"
 
 clean:
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
