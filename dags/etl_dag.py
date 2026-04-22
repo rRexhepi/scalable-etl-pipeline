@@ -1,11 +1,10 @@
-# dags/nyc_taxi_etl_dag.py
+# dags/etl_dag.py
 
 from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 default_args = {
     'owner': 'airflow',
@@ -56,14 +55,12 @@ with DAG(
         }
     )
 
-    # Task 3: Load - Load data into PostgreSQL
-    load = PostgresOperator(
+    # Task 3: Load - COPY + ON CONFLICT upsert with a pickup_datetime watermark.
+    # See etl/load.py. We run it as a BashOperator so the loader's argparse
+    # surface (--config, --no-watermark) is exercised end-to-end.
+    load = BashOperator(
         task_id='load_data',
-        postgres_conn_id='postgres_default',
-        sql="""
-        COPY nyc_taxi_trip_duration_train FROM '/opt/airflow/data_clean/cleaned_train.csv' DELIMITER ',' CSV HEADER;
-        COPY nyc_taxi_trip_duration_test FROM '/opt/airflow/data_clean/cleaned_test.csv' DELIMITER ',' CSV HEADER;
-        """,
+        bash_command='python -m etl.load --config /opt/airflow/config/config.yaml',
     )
 
     # Define task dependencies
