@@ -1,8 +1,11 @@
-import os
-import yaml
 import logging
+import os
+
+import yaml
+
 from utils.file_utils import read_csv_file
 from utils.logger import setup_logger
+
 
 def extract_data(config_path='config/config.yaml'):
     """
@@ -23,7 +26,7 @@ def extract_data(config_path='config/config.yaml'):
         logger.error(f"Configuration file not found at {config_path}")
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
 
-    with open(config_path, 'r') as file:
+    with open(config_path) as file:
         config = yaml.safe_load(file)
 
     raw_data_dir = config.get('paths', {}).get('raw_data')
@@ -67,7 +70,7 @@ def main():
     Main function to execute the extraction process.
     """
     try:
-        extracted_data = extract_data()
+        extract_data()
         # Optionally, you can perform further actions with the extracted_data here
         # For example, save them to processed_data or pass to the transform step
     except Exception as e:

@@ -1,6 +1,8 @@
 import logging
 import os
+
 import yaml
+
 
 def setup_logger(config_path='config/config.yaml'):
     """
@@ -12,7 +14,7 @@ def setup_logger(config_path='config/config.yaml'):
     Returns:
         logging.Logger: Configured logger instance.
     """
-    with open(config_path, 'r') as file:
+    with open(config_path) as file:
         config = yaml.safe_load(file)
 
     log_config = config.get('logging', {})

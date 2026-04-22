@@ -7,5 +7,16 @@ database:
 
 paths:
   raw_data: data/raw/
-  processed_data: data/processed/cleaned_data.csv
+  # Directory that the Spark transform writes cleaned_train.csv / cleaned_test.csv into,
+  # and that etl/load.py reads from.
+  processed_data: data/processed/
   spark_configs: spark-configs/
+
+s3:
+  endpoint: http://minio:9000
+  bucket: nyc-taxi
+  raw_prefix: raw/
+
+logging:
+  level: INFO
+  file: logs/etl.log

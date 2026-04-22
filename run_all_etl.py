@@ -7,11 +7,12 @@ Description:
     without relying on the psql command-line tool.
 """
 
+import logging
+import os
 import subprocess
 import sys
-import os
-import logging
 from datetime import datetime
+
 import psycopg2
 from dotenv import load_dotenv
 
@@ -100,12 +101,12 @@ def run_sql_script_psycopg2(sql_script_path, user, password, dbname=None):
 
     logging.info(f"Executing SQL script: {os.path.basename(sql_script_path)} as user: {user}")
     try:
-        with open(sql_script_path, 'r') as file:
+        with open(sql_script_path) as file:
             sql_commands = file.read()
 
         # Connect to PostgreSQL
         conn = psycopg2.connect(
-            dbname=dbname,  
+            dbname=dbname,
             user=user,
             password=password,
             host=DB_HOST,
@@ -146,8 +147,7 @@ def run_python_script(script_path, env=None):
     try:
         result = subprocess.run(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             check=True,
             env=env  # Pass the environment variables if needed
@@ -172,8 +172,7 @@ def run_tests():
     try:
         result = subprocess.run(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             check=True
         )

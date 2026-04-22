@@ -1,9 +1,12 @@
-import os
-import yaml
 import logging
+import os
+
+import yaml
+
 from utils.db_utils import get_db_engine
 from utils.file_utils import read_csv_file
 from utils.logger import setup_logger
+
 
 def load_data(config_path='config/config.yaml'):
     """
@@ -23,7 +26,7 @@ def load_data(config_path='config/config.yaml'):
         logger.error(f"Configuration file not found at {config_path}")
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
 
-    with open(config_path, 'r') as file:
+    with open(config_path) as file:
         config = yaml.safe_load(file)
 
     # Get processed data paths

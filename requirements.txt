@@ -1,23 +1,25 @@
-# Data Processing
-pyspark
-pandas
+# Runtime deps for the local orchestrator (run_all_etl.py) and etl/ modules.
+# Airflow workers get their deps from the official airflow image — this file
+# is for the developer's local virtualenv.
 
-# Database Integration
-psycopg2-binary
+# Data processing
+pyspark==3.5.1
+pandas==2.2.3
+numpy==1.26.4
 
-# S3 Interaction
-boto3
+# Data validation
+pandera==0.20.4
 
-# Configuration Management
-python-dotenv
-PyYAML
+# Database
+psycopg2-binary==2.9.9
+SQLAlchemy==2.0.35
 
-# Testing
-pytest
+# S3 / MinIO
+boto3==1.35.36
 
-# Logging Enhancements (Optional)
- python-json-logger
+# Config
+python-dotenv==1.0.1
+PyYAML==6.0.2
 
-# Additional Utilities (Optional)
- numpy
- sqlalchemy
+# Logging
+python-json-logger==2.0.7
