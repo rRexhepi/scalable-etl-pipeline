@@ -1,8 +1,13 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import unix_timestamp, col
 import logging
-import sys
 import os
+import sys
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, unix_timestamp
+
+# Make `etl.validation` importable when this script is submitted directly.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from etl.validation import CleanedTaxiSchema, RawTaxiSchema, validate  # noqa: E402
 
 def setup_logger(log_level=logging.INFO):
     """
@@ -70,12 +75,17 @@ def main():
         train_df = spark.read.csv(raw_train_path, header=True, inferSchema=True)
         logger.info(f"Train DataFrame Schema:\n{train_df.printSchema()}")
         logger.info(f"Number of records in train data: {train_df.count()}")
-        
-        # Read raw test data
+
+        # Read raw test data (no trip_duration column)
         logger.info(f"Reading raw test data from {raw_test_path}")
         test_df = spark.read.csv(raw_test_path, header=True, inferSchema=True)
         logger.info(f"Test DataFrame Schema:\n{test_df.printSchema()}")
         logger.info(f"Number of records in test data: {test_df.count()}")
+
+        # Data-quality gate on the raw train input (sampled to keep validation fast).
+        logger.info("Validating raw train data against RawTaxiSchema.")
+        validate(train_df.limit(10_000).toPandas(), RawTaxiSchema, sample=None)
+        logger.info("Raw train data passed validation.")
         
         # Transformation Logic
         def transform_dataframe(df, dataset_type):
@@ -113,7 +123,13 @@ def main():
         # Transform train and test data
         transformed_train_df = transform_dataframe(train_df, "train")
         transformed_test_df = transform_dataframe(test_df, "test")
-        
+
+        # Data-quality gate on the cleaned output — fail the job loudly if the
+        # transform produced bad data rather than silently loading it to Postgres.
+        logger.info("Validating cleaned train data against CleanedTaxiSchema.")
+        validate(transformed_train_df.limit(10_000).toPandas(), CleanedTaxiSchema, sample=None)
+        logger.info("Cleaned train data passed validation.")
+
         # Write transformed train data to CSV
         logger.info(f"Writing transformed train data to {processed_train_path}")
         transformed_train_df.coalesce(1).write.csv(processed_train_path, header=True, mode="overwrite")

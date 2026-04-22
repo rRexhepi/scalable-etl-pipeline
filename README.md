@@ -1,65 +1,103 @@
 # scalable-etl-pipeline
-## Overview
-- This project demonstrates a scalable ETL (Extract, Transform, Load) pipeline using Python and PostgreSQL. It processes NYC taxi trip duration data from Kaggle, handling data extraction, transformation, and loading into a PostgreSQL database.
 
-## Project Structure
-- The project structure:
-   ```bash
-   scalable-etl-pipeline/
-   ├── dags/                     # Airflow DAGs (Optional for future use)
-   ├── data/                     # Raw data files (CSV)
-   ├── data_clean/               # Processed data (CSV)
-   ├── etl/                      # ETL scripts (extract, transform, load)
-   ├── logs/                     # Log files for the ETL pipeline
-   ├── scripts/                  # SQL scripts for DB setup
-   ├── tests/                    # Unit and integration tests
-   ├── .env                      # Environment variables for DB config
-   ├── requirements.txt          # Python dependencies
-   ├── docker-compose.yaml       # Docker setup (optional)
-   ├── Dockerfile.spark          # Spark setup (optional)
-   └── run_all_etl.py            # Orchestrates the ETL pipeline
+An ETL pipeline for the Kaggle **NYC Taxi Trip Duration** dataset. It pulls raw
+CSVs into MinIO (S3-compatible), transforms them with PySpark, gates the output
+behind a Pandera data-quality check, and loads the cleaned data into Postgres.
+Orchestrated with Airflow.
 
-## Setup Instructions
-1. Clone the Repository
-   ```bash
-   git clone https://github.com/yourusername/scalable-etl-pipeline.git
-   cd scalable-etl-pipeline
-2. Install Dependencies
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-3. Set Up Environment Variables
-   ```bash
-   SUPERUSER_USER=your_username
-   SUPERUSER_PASSWORD=your_password
-   DB_USER=airflow
-   DB_PASSWORD=airflow
-   DB_NAME=airflow
-   DB_HOST=localhost
-   DB_PORT=5432
-4. Set Up PostgreSQL
-- Run the database setup scripts:
-   ```bash
-   psql -U your_username -f scripts/setup_db.sql
-   psql -U your_username -d airflow -f scripts/setup_tables.sql
-5. Run the ETL Pipeline
-   ```bash
-   python run_all_etl.py
-6. Reset the Pipeline (Optional)
-- To reset the database and start fresh:
-   ```bash
-   psql -U your_username -f scripts/reset_db.sql
-## Docker Setup (Optional)
-- To run using Docker:
-   ```bash
-   docker-compose up --build
-## Logs
-- Logs are stored in the logs/ directory for each ETL run.
-## Tests
-- Run tests with:
-   ```bash
-   pytest tests/
+> **Status:** portfolio project. Runs end-to-end with `docker compose up`.
+> Data-quality gate will fail the DAG on schema regressions.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph local["Local dev"]
+        CSV["data/raw/*.csv"]
+    end
+    subgraph storage["Object storage"]
+        MINIO[("MinIO<br/>s3a://nyc-taxi/raw/")]
+    end
+    subgraph compute["Compute"]
+        SPARK["PySpark<br/>transform"]
+        GATE{{"Pandera<br/>schema gate"}}
+    end
+    subgraph warehouse["Warehouse"]
+        PG[("Postgres<br/>nyc_taxi_trip_duration_*")]
+    end
+    AIRFLOW["Airflow DAG<br/>nyc_taxi_etl_pipeline"]:::orc
+
+    CSV -->|aws s3 cp| MINIO
+    MINIO -->|spark.read.csv s3a://| SPARK
+    SPARK --> GATE
+    GATE -->|pass| PG
+    GATE -.->|fail| FAIL[[task fails, no load]]
+    AIRFLOW -.orchestrates.-> MINIO
+    AIRFLOW -.orchestrates.-> SPARK
+    AIRFLOW -.orchestrates.-> PG
+
+    classDef orc fill:#f6e7ff,stroke:#8a2be2;
+```
+
+## What's in the box
+
+| Layer | Tech |
+|---|---|
+| Orchestration | Airflow 2.5 (`dags/etl_dag.py`) |
+| Object store | MinIO (S3 API) |
+| Transform | PySpark 3.5 (`scripts/transform.py`) |
+| Data quality | Pandera (`etl/validation.py`) |
+| Warehouse | Postgres 13 |
+| Packaging | Docker Compose, Makefile |
+| CI | GitHub Actions (lint + pytest) |
+
+## Running it
+
+```bash
+# 1. Copy env template and fill in locally
+cp .env.example .env
+# Generate the two Airflow keys:
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# 2. Put the Kaggle dataset in data/raw/
+#    (train.csv, test.csv, sample_submission.csv)
+
+# 3. Bring the stack up
+make up          # docker compose up -d with healthchecks
+
+# 4. Trigger the DAG
+#    Airflow UI at http://localhost:8080, MinIO console at http://localhost:9001
+```
+
+## Running tests
+
+```bash
+make install-dev
+make lint
+make test
+```
+
+Tests cover the loader's database interaction (mocked) and pin the Pandera
+schema contracts so CI will fail loud if the data shape regresses.
+
+## What's intentionally NOT here
+
+- **Streaming / incremental loads.** The Postgres load is full-refresh
+  (`if_exists='replace'`). Real incremental support is in the backlog —
+  see [Roadmap](#roadmap).
+- **Horizontal Spark cluster.** Compose runs a single Spark container;
+  this is for local dev, not benchmarking.
+- **Secrets management beyond `.env`.** Production deploys should use Vault,
+  AWS Secrets Manager, or k8s Secrets.
+
+## Roadmap
+
+- [ ] Idempotent upsert loads (staging table + `INSERT … ON CONFLICT`, watermark column).
+- [ ] Replace `pandas.to_sql` with Postgres `COPY` for 10×+ throughput.
+- [ ] Delete `run_all_etl.py`, make Airflow the single source of truth.
+- [ ] Prometheus metrics + Grafana dashboard for row counts and task duration.
+
 ## License
-- This project is licensed under the MIT License.
 
+MIT — see [LICENSE](LICENSE).

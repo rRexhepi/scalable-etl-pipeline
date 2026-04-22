@@ -38,6 +38,7 @@ venv.bak/
 # Environment Variables
 .env
 .env.*
+!.env.example
 
 # Installer logs
 pip-log.txt
@@ -96,6 +97,7 @@ celerybeat-schedule
 # dotenv
 .env
 .env.*
+!.env.example
 .envrc
 
 # virtualenv

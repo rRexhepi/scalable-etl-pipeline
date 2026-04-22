@@ -24,7 +24,7 @@ def test_extract_data_success(monkeypatch):
     def mock_read_csv_file(file_path):
         return pd.DataFrame({'column1': [1, 2, 3]})
 
-    monkeypatch.setattr('utils.file_utils.read_csv_file', mock_read_csv_file)
+    monkeypatch.setattr('etl.extract.read_csv_file', mock_read_csv_file)
 
     extracted_data = extract_data()
     assert 'train' in extracted_data
