@@ -83,18 +83,69 @@ schema contracts so CI will fail loud if the data shape regresses.
 
 ## What's intentionally NOT here
 
-- **Streaming / incremental loads.** The Postgres load is full-refresh
-  (`if_exists='replace'`). Real incremental support is in the backlog —
-  see [Roadmap](#roadmap).
 - **Horizontal Spark cluster.** Compose runs a single Spark container;
   this is for local dev, not benchmarking.
 - **Secrets management beyond `.env`.** Production deploys should use Vault,
   AWS Secrets Manager, or k8s Secrets.
 
+## Design notes
+
+**Why a staging-table `COPY` + `ON CONFLICT` upsert, not `to_sql`?** The
+original loader used `df.to_sql(if_exists='replace')`, which dropped and
+recreated the target on every run. That's both destructive (downstream
+readers briefly see an empty table) and not idempotent in the
+data-engineering sense: a corrected row in the source had no way to
+overwrite its prior version without hand-SQL. The new path COPYs into a
+session-temp staging table (`CREATE TEMP TABLE … LIKE target INCLUDING
+DEFAULTS ON COMMIT DROP`), then does a single
+`INSERT … SELECT … ON CONFLICT (id) DO UPDATE SET …`. Everything runs in
+one transaction, so a mid-load failure leaves the target untouched.
+
+**Why a watermark on top of upsert?** The upsert alone is correct — you
+could re-run on the full file every day and never corrupt anything — but
+you'd also scan and stage millions of duplicate rows. `get_watermark()`
+queries `MAX(pickup_datetime)` and filters the DataFrame before `COPY`, so
+reruns on the same input become near-no-ops while genuinely new rows
+still flow through. The upsert stays as a safety net for row-level
+corrections that arrive inside the watermark window. `--no-watermark`
+bypasses the filter for deliberate backfills.
+
+**Why `id` as the conflict key?** Kaggle's `id` is globally unique per
+trip, so it's the natural primary key for idempotency. The old DDL had
+`(VendorID, pickup_datetime)` as PK — but case-folded to `vendorid` in
+Postgres and didn't match the cleaned CSV's `vendor_id` column anyway,
+so the server-side `COPY` in the Airflow DAG would have failed on a
+real run. The DAG now shells out to `python -m etl.load`, which is the
+single code path.
+
+**Why not `to_sql(method='multi')`?** It's the first suggestion most
+Stack Overflow answers give for "`to_sql` is slow" and — on this
+workload — it's actively slower than the default (see below). It
+builds one giant multi-row `INSERT` per chunk; psycopg2 pays a parse
+cost per statement that eclipses the savings. `COPY` is the right
+primitive, not a different shape of `INSERT`.
+
+### Benchmark: `to_sql` vs `copy_upsert`
+
+Run on macOS (Apple Silicon), Postgres 14, local Unix socket,
+1,000,000 synthetic NYC-Taxi rows (~190 MB in-memory). Reproduce with
+`python scripts/benchmark_load.py --rows 1000000`:
+
+| Path                                              | Time    | Relative  |
+|---------------------------------------------------|---------|-----------|
+| `pandas.to_sql(if_exists='replace')` (old)        | 18.15 s | 1.0×      |
+| `pandas.to_sql(method='multi', chunksize=1000)`   | 56.72 s | 0.3× (slower) |
+| `copy_upsert` (empty target, new)                 |  5.12 s | **3.5× faster** |
+| `copy_upsert` (rerun vs. full target)             |  6.44 s | **2.8× faster**, idempotent |
+
+The rerun row is the interesting one: the new loader stays fast even
+when every input row conflicts with an existing row, which is the
+common case in daily batch reruns.
+
 ## Roadmap
 
-- [ ] Idempotent upsert loads (staging table + `INSERT … ON CONFLICT`, watermark column).
-- [ ] Replace `pandas.to_sql` with Postgres `COPY` for 10×+ throughput.
+- [x] Idempotent upsert loads (staging table + `INSERT … ON CONFLICT`, watermark column).
+- [x] Replace `pandas.to_sql` with Postgres `COPY` for materially higher throughput.
 - [ ] Delete `run_all_etl.py`, make Airflow the single source of truth.
 - [ ] Prometheus metrics + Grafana dashboard for row counts and task duration.
 
