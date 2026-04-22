@@ -48,6 +48,7 @@ flowchart LR
 | Transform | PySpark 3.5 (`scripts/transform.py`) |
 | Data quality | Pandera (`etl/validation.py`) |
 | Warehouse | Postgres 13 |
+| Observability | Prometheus + Pushgateway + postgres-exporter + Grafana |
 | Packaging | Docker Compose, Makefile |
 | CI | GitHub Actions (lint + pytest) |
 
@@ -65,9 +66,11 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 # 3. Bring the stack up
 make up          # docker compose up -d with healthchecks
+make dashboards  # prints URLs for Airflow, Grafana, Prometheus, MinIO
 
-# 4. Trigger the DAG
-#    Airflow UI at http://localhost:8080, MinIO console at http://localhost:9001
+# 4. Trigger the DAG at http://localhost:8080. The load task pushes
+#    per-dataset metrics to the Pushgateway; the provisioned Grafana
+#    dashboard "NYC Taxi ETL — Pipeline Health" shows them live.
 ```
 
 ## Running tests
@@ -142,12 +145,57 @@ The rerun row is the interesting one: the new loader stays fast even
 when every input row conflicts with an existing row, which is the
 common case in daily batch reruns.
 
+## Observability
+
+Everything the loader does is visible on a provisioned Grafana
+dashboard, no click-ops required:
+
+```
+make up          # brings Prometheus, Pushgateway, postgres-exporter, Grafana along with the rest
+make dashboards  # prints URLs
+```
+
+**What's measured**
+
+| Metric                                    | Source                      | Why it matters                           |
+|-------------------------------------------|-----------------------------|------------------------------------------|
+| `etl_rows_loaded_total{dataset}`          | Pushgateway ← loader        | Sudden drops = silent upstream breakage. |
+| `etl_load_duration_seconds{dataset}`      | Pushgateway ← loader        | Trend catches the "gradual slowdown."    |
+| `etl_load_last_success_timestamp_seconds` | Pushgateway ← loader        | Freshness SLO; alert when stale > 24h.   |
+| `etl_load_failures_total`                 | Pushgateway ← loader        | One red stat on the dashboard.           |
+| `pg_stat_user_tables_n_live_tup`          | postgres-exporter           | Warehouse-side row counts.               |
+| `pg_stat_activity_count`                  | postgres-exporter           | Connection pressure + stuck states.      |
+
+**Why Pushgateway and not a long-running `/metrics` endpoint?** The
+loader is a batch process that exits after each run. Prometheus'
+default pull model assumes a target it can scrape whenever it wants;
+exposing a `/metrics` endpoint on a process that isn't running is a
+non-starter. Pushgateway is the canonical primitive for one-shot jobs:
+the loader pushes on exit, Prometheus scrapes the Pushgateway on its
+normal interval. The `etl/metrics.py` recorder no-ops when
+`PROMETHEUS_PUSHGATEWAY` is unset, so tests and local dev don't need
+the observability stack up.
+
+**Why the `job` + `instance` split?** Per Prometheus guidance, `job`
+names the pipeline (`nyc_taxi_load`) and the Pushgateway grouping key
+(`instance=train` / `instance=test`) keeps the two datasets as
+separate series. Without the grouping key, successive pushes from the
+two datasets would clobber each other.
+
+The dashboard JSON lives in
+[`observability/grafana/dashboards/etl-overview.json`](observability/grafana/dashboards/etl-overview.json)
+— check it in, don't click it into existence. A screenshot goes here
+once the stack has been run with real data:
+`docs/grafana-dashboard.png` (not yet committed).
+
 ## Roadmap
 
 - [x] Idempotent upsert loads (staging table + `INSERT … ON CONFLICT`, watermark column).
 - [x] Replace `pandas.to_sql` with Postgres `COPY` for materially higher throughput.
-- [ ] Delete `run_all_etl.py`, make Airflow the single source of truth.
-- [ ] Prometheus metrics + Grafana dashboard for row counts and task duration.
+- [x] Delete `run_all_etl.py`, make Airflow the single source of truth.
+- [x] Prometheus metrics + Grafana dashboard for row counts and task duration.
+- [ ] Commit a Grafana screenshot after an end-to-end DAG run.
+- [ ] Alert rules (`prometheus.rules.yml`) for stale data + failure counter.
 
 ## License
 
