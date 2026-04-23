@@ -1,0 +1,181 @@
+name: Capture Grafana dashboard screenshot
+
+# Manual-only. Spins up the observability subset of the compose stack on
+# an Ubuntu runner, generates synthetic NYC-Taxi cleaned CSVs, runs the
+# loader a few times so the Pushgateway has rate-able samples, captures
+# the Grafana dashboard with Playwright, and opens a follow-up PR with
+# the refreshed PNG.
+#
+# Why a workflow instead of a one-off local capture? The compose stack
+# is the reproducibility contract for the repo, so a CI-captured
+# screenshot matches what a reviewer would see locally. Disposable
+# runners also sidestep the host-side instabilities that made local
+# capture flaky on the author's machine.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  # Match config/config.yaml so etl/load.py's get_db_engine connects.
+  POSTGRES_USER: airflow
+  POSTGRES_PASSWORD: airflow
+  POSTGRES_DB: airflow
+  # MinIO isn't used by this workflow (we skip the spark/airflow services),
+  # but compose still expects the env vars to be set for interpolation.
+  MINIO_ROOT_USER: minioadmin
+  MINIO_ROOT_PASSWORD: minioadmin
+  MINIO_ENDPOINT: http://minio:9000
+  MINIO_BUCKET: nyc-taxi
+  PROMETHEUS_PUSHGATEWAY: localhost:9091
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install loader dependencies (skip pyspark)
+        # The loader path doesn't import pyspark; skipping it shaves
+        # several minutes off the run. requirements-dev gives us the
+        # same versions as CI without the Spark dep.
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy "PyYAML>=6" "SQLAlchemy>=2" psycopg2-binary "prometheus-client==0.21.0"
+
+      - name: Generate Airflow secrets for compose interpolation
+        # Airflow services aren't started by this workflow, but compose
+        # still validates `${VAR}` references in the file at parse time.
+        # A Fernet key is just url-safe base64 of 32 random bytes —
+        # avoid pulling the `cryptography` package just to format it.
+        run: |
+          {
+            echo "AIRFLOW__CORE__FERNET_KEY=$(python -c 'import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
+            echo "AIRFLOW__WEBSERVER__SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          } >> $GITHUB_ENV
+
+      - name: Bring up observability subset (postgres, pushgateway, exporter, prometheus, grafana)
+        # Skip airflow + spark + minio: they are slow to build and not
+        # needed for the loader → pushgateway → grafana path.
+        # `--wait` only blocks on services with a healthcheck; the
+        # explicit polls below cover prometheus + grafana startup.
+        run: |
+          docker compose up -d --wait \
+            postgres pushgateway postgres-exporter prometheus grafana
+
+      - name: Wait for Prometheus + Grafana to be healthy
+        run: |
+          for i in $(seq 1 60); do
+            prom_ok=$(curl -sSf http://localhost:9090/-/ready >/dev/null && echo y || echo n)
+            graf_ok=$(curl -sSf http://localhost:3000/api/health >/dev/null && echo y || echo n)
+            if [ "$prom_ok" = "y" ] && [ "$graf_ok" = "y" ]; then
+              echo "Prometheus + Grafana healthy after ${i} attempts"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Observability services failed to come up"
+          docker compose ps
+          docker compose logs --tail=200 prometheus grafana
+          exit 1
+
+      - name: Wait for dashboard provisioning
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sSf http://localhost:3000/api/dashboards/uid/nyc-taxi-etl >/dev/null; then
+              echo "Dashboard provisioned after ${i} attempts"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Dashboard not provisioned"
+          docker compose logs grafana | tail -100
+          exit 1
+
+      - name: Apply warehouse schema
+        run: |
+          PGPASSWORD=$POSTGRES_PASSWORD psql \
+            -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB \
+            -v ON_ERROR_STOP=1 \
+            -f scripts/setup_tables.sql
+
+      - name: Generate synthetic cleaned CSVs
+        run: python scripts/generate_synthetic_taxi.py
+
+      - name: Drive three loader runs spaced 30 s apart
+        # The dashboard's "Rows upserted/run" panel uses
+        # increase(etl_rows_loaded_total[5m]) and needs at least two
+        # samples in-window to render a non-zero series. Three pushes
+        # spaced ~30 s apart give Prometheus enough scrape coverage
+        # for both the rate panels and the stat tiles.
+        #
+        # `--no-watermark` is essential here: with the default
+        # incremental watermark, runs 2 and 3 would see an empty
+        # DataFrame (everything already past the watermark) and push
+        # zero-row metrics, which would flat-line the rate panels.
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          for i in 1 2 3; do
+            echo "--- loader run #${i} ---"
+            python -m etl.load --no-watermark
+            if [ "$i" != "3" ]; then sleep 30; fi
+          done
+
+      - name: Let Prometheus scrape settle
+        run: sleep 30
+
+      - name: Install Playwright + Chromium
+        run: |
+          pip install "playwright==1.47.2"
+          playwright install --with-deps chromium
+
+      - name: Capture dashboard screenshot
+        run: |
+          mkdir -p docs
+          python .github/scripts/screenshot_dashboard.py \
+            --url "http://localhost:3000/d/nyc-taxi-etl/nyc-taxi-etl-pipeline-health?kiosk&from=now-15m&to=now" \
+            --out docs/grafana-dashboard.png
+
+      - name: Upload screenshot as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grafana-dashboard
+          path: docs/grafana-dashboard.png
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v
+
+      - name: Open PR with refreshed screenshot
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/grafana-dashboard-screenshot
+          delete-branch: true
+          title: "chore: refresh Grafana dashboard screenshot"
+          commit-message: "chore: refresh Grafana dashboard screenshot"
+          body: |
+            Auto-generated by [`Capture Grafana dashboard screenshot`](.github/workflows/screenshot-grafana-dashboard.yml).
+
+            Refreshed `docs/grafana-dashboard.png` from a clean observability-subset run on `ubuntu-latest`:
+            synthetic cleaned CSVs → 3 × `python -m etl.load` → Pushgateway → Prometheus → Playwright snapshot
+            of the `NYC Taxi ETL — Pipeline Health` dashboard.
+
+            ### Follow-up
+            Once merged, replace lines 188–189 of `README.md` (the "screenshot goes here" placeholder) with:
+
+            ```markdown
+            ![Grafana dashboard](docs/grafana-dashboard.png)
+            ```
+          add-paths: |
+            docs/grafana-dashboard.png
