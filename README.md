@@ -184,9 +184,16 @@ two datasets would clobber each other.
 
 The dashboard JSON lives in
 [`observability/grafana/dashboards/etl-overview.json`](observability/grafana/dashboards/etl-overview.json)
-— check it in, don't click it into existence. A screenshot goes here
-once the stack has been run with real data:
-`docs/grafana-dashboard.png` (not yet committed).
+— check it in, don't click it into existence.
+
+![NYC Taxi ETL — Pipeline Health dashboard](docs/grafana-dashboard.png)
+
+The image above is captured in CI, not hand-cropped on a laptop: the
+[`Capture Grafana dashboard screenshot`](.github/workflows/screenshot-grafana-dashboard.yml)
+workflow spins up the observability subset of the compose stack on an
+Ubuntu runner, runs the loader a few times to populate Pushgateway,
+snapshots the dashboard with Playwright, and opens a follow-up PR
+with the refreshed PNG.
 
 **Alert rules.** Prometheus evaluates a small rules file at
 [`observability/prometheus/alerts.yml`](observability/prometheus/alerts.yml):
@@ -202,7 +209,7 @@ state on Prometheus' own `/alerts` page and via the dashboard.
 - [x] Replace `pandas.to_sql` with Postgres `COPY` for materially higher throughput.
 - [x] Delete `run_all_etl.py`, make Airflow the single source of truth.
 - [x] Prometheus metrics + Grafana dashboard for row counts and task duration.
-- [ ] Commit a Grafana screenshot after an end-to-end DAG run.
+- [x] Commit a Grafana screenshot after an end-to-end DAG run.
 - [x] Alert rules (`observability/prometheus/alerts.yml`) for stale data + failure counter.
 
 ## License
