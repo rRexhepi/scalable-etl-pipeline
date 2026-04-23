@@ -2,6 +2,11 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Alert rules live next to this file and are mounted into the prometheus
+# container by docker-compose; see observability/prometheus/alerts.yml.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   # One-shot ETL job metrics are pushed by etl/metrics.py:MetricsRecorder.
   # The `honor_labels: true` flag keeps the `job` + `instance` labels the
