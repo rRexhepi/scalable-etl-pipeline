@@ -188,6 +188,14 @@ The dashboard JSON lives in
 once the stack has been run with real data:
 `docs/grafana-dashboard.png` (not yet committed).
 
+**Alert rules.** Prometheus evaluates a small rules file at
+[`observability/prometheus/alerts.yml`](observability/prometheus/alerts.yml):
+`ETLLoadStale` fires when no dataset has loaded in 24 h,
+`ETLLoadFailing` fires on any increment to `etl_load_failures_total`,
+and `PostgresExporterDown` catches silent exporter death. An
+Alertmanager routing tree is not shipped yet — the rules expose their
+state on Prometheus' own `/alerts` page and via the dashboard.
+
 ## Roadmap
 
 - [x] Idempotent upsert loads (staging table + `INSERT … ON CONFLICT`, watermark column).
@@ -195,7 +203,7 @@ once the stack has been run with real data:
 - [x] Delete `run_all_etl.py`, make Airflow the single source of truth.
 - [x] Prometheus metrics + Grafana dashboard for row counts and task duration.
 - [ ] Commit a Grafana screenshot after an end-to-end DAG run.
-- [ ] Alert rules (`prometheus.rules.yml`) for stale data + failure counter.
+- [x] Alert rules (`observability/prometheus/alerts.yml`) for stale data + failure counter.
 
 ## License
 
