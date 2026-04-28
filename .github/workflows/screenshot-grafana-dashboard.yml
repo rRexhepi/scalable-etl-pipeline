@@ -56,7 +56,7 @@ jobs:
       - name: Generate Airflow secrets for compose interpolation
         # Airflow services aren't started by this workflow, but compose
         # still validates `${VAR}` references in the file at parse time.
-        # A Fernet key is just url-safe base64 of 32 random bytes —
+        # A Fernet key is just url-safe base64 of 32 random bytes,
         # avoid pulling the `cryptography` package just to format it.
         run: |
           {
@@ -169,7 +169,7 @@ jobs:
 
             Refreshed `docs/grafana-dashboard.png` from a clean observability-subset run on `ubuntu-latest`:
             synthetic cleaned CSVs → 3 × `python -m etl.load` → Pushgateway → Prometheus → Playwright snapshot
-            of the `NYC Taxi ETL — Pipeline Health` dashboard.
+            of the `NYC Taxi ETL: Pipeline Health` dashboard.
 
             ### Follow-up
             Once merged, replace lines 188–189 of `README.md` (the "screenshot goes here" placeholder) with:

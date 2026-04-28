@@ -4,7 +4,7 @@ Replaces an earlier ``pandas.to_sql(if_exists='replace')`` path which was
 destructive (dropped and recreated the table on every run) and slow
 (row-by-row INSERTs under the hood). This version:
 
-* Uses Postgres ``COPY`` through a session-temp staging table — see
+* Uses Postgres ``COPY`` through a session-temp staging table, see
   :func:`utils.db_utils.copy_upsert` for the mechanics.
 * Deduplicates on a real primary key (``id`` from the Kaggle dataset),
   so reruns are idempotent and row-level corrections propagate.

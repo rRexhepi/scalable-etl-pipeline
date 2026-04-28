@@ -1,6 +1,6 @@
 {
   "uid": "nyc-taxi-etl",
-  "title": "NYC Taxi ETL — Pipeline Health",
+  "title": "NYC Taxi ETL: Pipeline Health",
   "tags": ["etl", "nyc-taxi"],
   "timezone": "browser",
   "schemaVersion": 39,
@@ -29,7 +29,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Rows loaded (last run) — $dataset",
+      "title": "Rows loaded (last run): $dataset",
       "gridPos": {"x": 0, "y": 0, "w": 8, "h": 5},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
@@ -44,7 +44,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Last successful load — $dataset",
+      "title": "Last successful load: $dataset",
       "gridPos": {"x": 8, "y": 0, "w": 8, "h": 5},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
@@ -124,7 +124,7 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Warehouse live rows — nyc_taxi_trip_duration_*",
+      "title": "Warehouse live rows: nyc_taxi_trip_duration_*",
       "gridPos": {"x": 0, "y": 13, "w": 12, "h": 8},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [

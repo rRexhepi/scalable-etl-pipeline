@@ -50,7 +50,7 @@ def test_extract_data_no_files(monkeypatch):
 
     monkeypatch.setattr('yaml.safe_load', mock_safe_load)
 
-    # Config exists, but none of the raw CSVs do — should raise ValueError
+    # Config exists, but none of the raw CSVs do, should raise ValueError
     # after the per-file loop finds nothing.
     monkeypatch.setattr(
         os.path, 'exists', lambda path: 'config.yaml' in str(path)

@@ -4,8 +4,8 @@ Spins up a throwaway Postgres on a Unix socket in ``$PG_BENCH_DIR``
 (auto-created under ``/tmp`` if unset), generates a synthetic NYC-Taxi-shaped
 DataFrame, and times four paths:
 
-1. ``pandas.to_sql(if_exists='replace')`` — the legacy loader.
-2. ``pandas.to_sql(method='multi', chunksize=1000)`` — a common "fast" variant.
+1. ``pandas.to_sql(if_exists='replace')``, the legacy loader.
+2. ``pandas.to_sql(method='multi', chunksize=1000)``, a common "fast" variant.
 3. :func:`utils.db_utils.copy_upsert` on an empty target (initial load).
 4. :func:`utils.db_utils.copy_upsert` on a fully-populated target (idempotent rerun).
 

@@ -125,7 +125,7 @@ def main():
         transformed_train_df = transform_dataframe(train_df, "train")
         transformed_test_df = transform_dataframe(test_df, "test")
 
-        # Data-quality gate on the cleaned output — fail the job loudly if the
+        # Data-quality gate on the cleaned output, fail the job loudly if the
         # transform produced bad data rather than silently loading it to Postgres.
         logger.info("Validating cleaned train data against CleanedTaxiSchema.")
         validate(transformed_train_df.limit(10_000).toPandas(), CleanedTaxiSchema, sample=None)

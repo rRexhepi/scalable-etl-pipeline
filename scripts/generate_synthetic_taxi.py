@@ -6,15 +6,15 @@ that ``etl.load`` and ``scripts/setup_tables.sql`` expect, so the
 loader → Postgres → Pushgateway → Prometheus → Grafana path can be
 exercised end-to-end without staging real Kaggle CSVs.
 
-This is **not** the Kaggle dataset. The numeric fields are uniform
+This is not the Kaggle dataset. The numeric fields are uniform
 random samples in NYC-bounding-box ranges and the durations are drawn
-from a gamma-shaped distribution; reviewers shouldn't read meaning into
+from a gamma-shaped distribution. Reviewers shouldn't read meaning into
 the values. The point is wiring: the dashboard's metric queries (rows
 loaded, load duration, warehouse live rows) light up without anyone
 needing Kaggle credentials.
 
-The schema mirrors ``scripts/benchmark_load.py:make_dataframe``;
-keeping them in lockstep makes it cheap to share fixtures later.
+The schema mirrors ``scripts/benchmark_load.py:make_dataframe``.
+Keeping them in lockstep makes it cheap to share fixtures later.
 
 Usage:
     python scripts/generate_synthetic_taxi.py --train-rows 5000 --test-rows 2000
@@ -78,7 +78,7 @@ def main() -> None:
     print(f"Wrote synthetic cleaned train data: {train_path} ({len(train):,} rows)")
     print(f"Wrote synthetic cleaned test data:  {test_path} ({len(test):,} rows)")
     print(
-        "\nThese are synthetic samples — the warehouse rows are not real trips. "
+        "\nThese are synthetic samples, the warehouse rows are not real trips. "
         "Replace with the Kaggle NYC Taxi CSVs (run through scripts/transform.py) "
         "for an actual experiment."
     )

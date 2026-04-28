@@ -77,7 +77,7 @@ def test_recorder_increments_failures_on_exception(monkeypatch):
 
 def test_recorder_swallows_pushgateway_errors(monkeypatch, caplog):
     monkeypatch.setenv("PROMETHEUS_PUSHGATEWAY", "pushgateway:9091")
-    # The whole point: metrics failures don't crash the load.
+    # Metrics failures don't crash the load.
     with (
         mock.patch("etl.metrics.push_to_gateway", side_effect=OSError("no route")) as push,
         caplog.at_level("WARNING"),

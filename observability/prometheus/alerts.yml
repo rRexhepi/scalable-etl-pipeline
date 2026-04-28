@@ -2,18 +2,18 @@
 #
 # These rules are loaded by `prometheus.yml` (`rule_files`) and evaluated
 # every `evaluation_interval` (15 s by default). They are intentionally
-# scoped to the loader's contract — staleness, failures, exporter health —
+# scoped to the loader's contract (staleness, failures, exporter health)
 # rather than per-panel thresholds, which belong on the Grafana side as
 # alerts driven by the dashboard queries.
 #
 # Threshold rationale:
-#   - 24 h staleness assumes the daily-cadence Airflow DAG; tighten if
+#   - 24 h staleness assumes the daily-cadence Airflow DAG. Tighten if
 #     you move to hourly loads.
 #   - The "for: 5m / 10m" intervals are long enough to swallow normal
 #     scheduler retry windows but short enough to page before the next
 #     scheduled run starts.
 #   - Severity labels (`warning` / `critical`) are placeholders for an
-#     Alertmanager routing tree; this repo does not ship Alertmanager
+#     Alertmanager routing tree. This repo does not ship Alertmanager
 #     yet (see roadmap).
 
 groups:
@@ -21,7 +21,7 @@ groups:
     interval: 30s
     rules:
       - alert: ETLLoadStale
-        # Watermark: time since the last *successful* load per dataset.
+        # Watermark: time since the last successful load per dataset.
         # `etl_load_last_success_timestamp_seconds` is set on every
         # MetricsRecorder context-manager exit when no exception fired.
         expr: time() - max by (dataset) (etl_load_last_success_timestamp_seconds) > 86400
@@ -34,14 +34,14 @@ groups:
             No successful run of `etl/load.py` for dataset
             `{{ $labels.dataset }}` in over 24 hours. Check the Airflow
             DAG run history and the loader logs in the scheduler
-            container; common root causes are upstream Spark transform
+            container. Common root causes are upstream Spark transform
             failures, expired MinIO credentials, or Postgres being
             unreachable.
 
       - alert: ETLLoadFailing
         # `etl_load_failures_total` is incremented inside
         # MetricsRecorder.__exit__ when the with-block raised. A non-zero
-        # increase over 1 h is unusual — most failure modes either
+        # increase over 1 h is unusual, most failure modes either
         # recover quickly or break loudly enough to spam the counter.
         expr: increase(etl_load_failures_total[1h]) > 0
         for: 5m
@@ -52,7 +52,7 @@ groups:
           description: |
             `etl_load_failures_total` has incremented in the last hour
             for dataset `{{ $labels.dataset }}`. Inspect the most recent
-            loader log; common causes are Postgres connectivity, schema
+            loader log. Common causes are Postgres connectivity, schema
             drift in the cleaned CSVs, or `copy_upsert` hitting a
             constraint that wasn't expected.
 
@@ -61,7 +61,7 @@ groups:
     rules:
       - alert: PostgresExporterDown
         # If the exporter is offline the warehouse-health panels go
-        # blank — silent failure is worse than a noisy page.
+        # blank, silent failure is worse than a noisy page.
         expr: up{job="postgres"} == 0
         for: 5m
         labels:
@@ -73,4 +73,4 @@ groups:
             Either the exporter container has crashed or its connection
             to Postgres is failing. Warehouse-health panels (live row
             counts, connection counts) will show no data until it
-            recovers; investigate via `docker compose logs postgres-exporter`.
+            recovers. Investigate via `docker compose logs postgres-exporter`.

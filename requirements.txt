@@ -1,5 +1,5 @@
 # Runtime deps for the etl/ modules. Airflow workers get their deps from
-# the official airflow image — this file is for the developer's local
+# the official airflow image, this file is for the developer's local
 # virtualenv and for CI.
 
 # Data processing
@@ -24,5 +24,5 @@ PyYAML==6.0.2
 # Logging
 python-json-logger==2.0.7
 
-# Observability — per-dataset load metrics pushed to Prometheus Pushgateway.
+# Observability: per-dataset load metrics pushed to Prometheus Pushgateway.
 prometheus-client==0.21.0
